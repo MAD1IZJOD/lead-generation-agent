@@ -153,8 +153,9 @@ export async function POST(request: Request) {
     );
   }
 
-  // Determine initial status: DRY RUN creates drafts, otherwise draft for review
-  const initialStatus = authorization.dryRun ? "draft" : "draft";
+  // Determine initial status: DRY RUN creates drafts, SUPERVISED
+  // requires approval before sending. AUTONOMOUS is not available.
+  const initialStatus = authorization.dryRun ? "draft" : "pending_approval";
 
   const { data: outreachRecord, error } = await supabase
     .from("outreach")
