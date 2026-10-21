@@ -73,7 +73,7 @@ export function createEmailProvider(config: EmailProviderConfig): EmailProvider 
   return createMockProvider(config);
 }
 
-function createMockProvider(config: EmailProviderConfig): EmailProvider {
+function createMockProvider(_config: EmailProviderConfig): EmailProvider {
   return {
     name: "mock",
     async sendEmail(params: SendEmailParams): Promise<SendEmailResult> {
@@ -127,7 +127,7 @@ function createSmtpProvider(config: EmailProviderConfig): EmailProvider {
         };
       }
     },
-    async verifyWebhook(payload: string, signature: string): Promise<boolean> {
+    async verifyWebhook(_payload: string, _signature: string): Promise<boolean> {
       // Verify webhook signature using config.webhookSecret
       if (!config.webhookSecret) {
         return false;
@@ -135,15 +135,15 @@ function createSmtpProvider(config: EmailProviderConfig): EmailProvider {
       // Implementation would verify the signature against the secret
       return true;
     },
-    async handleBounce(payload: unknown): Promise<BounceEvent | null> {
+    async handleBounce(_payload: unknown): Promise<BounceEvent | null> {
       // Parse bounce notification from SMTP provider
       return null;
     },
-    async handleReply(payload: unknown): Promise<ReplyEvent | null> {
+    async handleReply(_payload: unknown): Promise<ReplyEvent | null> {
       // Parse reply notification from SMTP provider
       return null;
     },
-    async handleComplaint(payload: unknown): Promise<ComplaintEvent | null> {
+    async handleComplaint(_payload: unknown): Promise<ComplaintEvent | null> {
       // Parse complaint notification from SMTP provider
       return null;
     },
