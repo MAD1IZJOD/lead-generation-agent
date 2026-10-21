@@ -103,6 +103,7 @@ create table outreach (
   body text not null,
   evidence_citations jsonb not null default '[]', -- evidence ids cited in this message
   status text not null default 'draft', -- draft, sent, delivered, opened, replied, bounced, failed
+  idempotency_key text,
   sent_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -110,6 +111,11 @@ create table outreach (
 
 -- Prevent duplicate sends to same lead within suppression window
 create index outreach_lead_status_idx on outreach (lead_id, status);
+
+-- Idempotency key for duplicate-send prevention
+create unique index outreach_idempotency_key_idx
+  on outreach (workspace_id, idempotency_key)
+  where idempotency_key is not null;
 
 -- ---------------------------------------------------------------
 # Suppression list: opt-outs and do-not-contact entries
