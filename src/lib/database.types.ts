@@ -69,6 +69,7 @@ export interface Lead {
   status: LeadStatus;
   created_at: string;
   updated_at: string;
+  lead_evidence?: LeadEvidence[];
 }
 
 export type LeadStatus = "new" | "qualified" | "contacted" | "replied" | "converted" | "opt_out";
