@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import type { Lead } from "@/lib/database.types";
 import type { Workspace } from "@/lib/database.types";
@@ -22,36 +22,45 @@ export default function OutreachPage({ params }: OutreachPageProps) {
   const [generating, setGenerating] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  const loadData = useCallback(async () => {
-    const { leadId } = await params;
-    setLoading(true);
-    try {
-      const leadResponse = await fetch(`/api/leads/${leadId}`);
-      if (leadResponse.ok) {
-        const leadResult = await leadResponse.json();
-        const leadData = leadResult.lead;
-        setLead(leadData);
+  useEffect(() => {
+    let cancelled = false;
 
-        if (leadData.workspace_id) {
-          const wsResponse = await fetch(
-            `/api/workspaces/${leadData.workspace_id}`
-          );
-          if (wsResponse.ok) {
-            const wsResult = await wsResponse.json();
-            setWorkspace(wsResult.workspace);
+    async function fetchData() {
+      const { leadId } = await params;
+      setLoading(true);
+      try {
+        const leadResponse = await fetch(`/api/leads/${leadId}`);
+        if (leadResponse.ok && !cancelled) {
+          const leadResult = await leadResponse.json();
+          const leadData = leadResult.lead;
+          setLead(leadData);
+
+          if (leadData.workspace_id && !cancelled) {
+            const wsResponse = await fetch(
+              `/api/workspaces/${leadData.workspace_id}`
+            );
+            if (wsResponse.ok && !cancelled) {
+              const wsResult = await wsResponse.json();
+              setWorkspace(wsResult.workspace);
+            }
           }
         }
+      } catch {
+        if (!cancelled) {
+          setMessage({ type: "error", text: "Failed to load lead data" });
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
-    } catch (err) {
-      setMessage({ type: "error", text: "Failed to load lead data" });
-    } finally {
-      setLoading(false);
     }
-  }, [params]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+    fetchData();
+    return () => {
+      cancelled = true;
+    };
+  }, [params]);
 
   const dryRun = workspace?.outreach_rules?.dry_run ?? true;
 
@@ -79,8 +88,8 @@ export default function OutreachPage({ params }: OutreachPageProps) {
         const result = await response.json();
         setMessage({ type: "error", text: result.error || "Failed to generate draft" });
       }
-    } catch (err) {
-      setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed to generate draft" });
+    } catch {
+      setMessage({ type: "error", text: "Failed to generate draft" });
     } finally {
       setGenerating(false);
     }
@@ -115,8 +124,8 @@ export default function OutreachPage({ params }: OutreachPageProps) {
         const result = await response.json();
         setMessage({ type: "error", text: result.error || "Failed to save draft" });
       }
-    } catch (err) {
-      setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed to save draft" });
+    } catch {
+      setMessage({ type: "error", text: "Failed to save draft" });
     } finally {
       setSaving(false);
     }
