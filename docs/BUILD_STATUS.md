@@ -9,10 +9,18 @@
 - **Qualification scoring**: Pure function that scores leads 0-100 based on email presence, company info, website, ICP industry match, ICP job title match, and target market match. Returns tier (cold/warm/hot) with detailed breakdown.
 - **Outreach drafts**: Create outreach drafts with subject and body. Suppression list check prevents outreach to opted-out contacts. Duplicate outreach prevention (one active outreach per lead). DRY RUN mode from workspace settings prevents real sends. Audit logging on outreach creation.
 - **AI outreach generation**: API endpoint that calls a configured model provider (OpenAI-compatible) to generate personalized outreach emails using lead evidence, workspace brand voice, approved claims, and service info. Returns 503 with clear message if no model provider configured.
+- **Emergency kill switch**: Global kill switch that stops all outbound sending across all workspaces. Stored in system_settings table with RLS. API endpoint to get and toggle status. Audit logging on activation/deactivation.
+- **Workspace pause controls**: Per-workspace pause with reason and timestamp. Pausing a workspace blocks all outbound sending for that workspace. API endpoint to get and toggle pause status. Audit logging on pause/unpause.
+- **Send authorization**: Server-side authorization checks before any outbound send: global kill switch, workspace pause, DRY RUN mode, suppression list, daily send limits, duplicate lead detection. Returns detailed check results explaining allow/block decisions.
+- **Idempotency keys**: Unique idempotency_key column on outreach table with unique index per workspace. Prevents duplicate sends when the same key is used.
+- **SUPERVISED approval queue**: Outreach created in SUPERVISED mode gets pending_approval status. API endpoints to list pending approvals and approve/reject individual items. Audit logging on approve/reject.
+- **Email provider adapter**: Modular email provider interface with mock (default, no real emails) and SMTP implementations. Webhook verification, bounce, reply, and complaint handling stubs. Credentials kept server-side only.
+- **Email send API**: Send approved outreach emails through configured provider. DRY RUN mode doesn't send real emails. Updates outreach status and sends_at timestamp. Audit logging on send.
+- **Follow-up scheduling**: Schedule follow-up emails with workspace-configured delays. Max follow-up limit enforced (default 2). Cancel follow-ups at any time. Tracks follow-up count and next follow-up timestamp. Audit logging on schedule/cancel.
 
 ## What is mocked or not yet implemented
 
-- **Email sending**: No real email provider integration. DRY RUN mode is default; no emails are sent. SMTP/SendGrid/Resend credentials required in `.env.local`.
+- **Email sending**: Mock provider is default (logs but does not send). SMTP provider available when credentials configured but not tested with real SMTP server. No real emails sent during development or testing.
 - **Model provider**: OpenAI-compatible API supported in code but requires `MODEL_API_KEY` in `.env.local`. No real calls are made during tests.
 - **Calendar integration**: Google Calendar provider referenced in `.env.example` but not implemented.
 - **Prospect discovery**: Discovery provider referenced in `.env.example` but not implemented.
@@ -21,75 +29,63 @@
 - **Audit log viewing**: Audit logs are written to the database but there is no UI to view them.
 - **Workspace listing/creation**: Users can edit their workspace settings but cannot create new workspaces or view a list of workspaces.
 - **Lead status transitions**: Status can be set manually but no automatic transitions (e.g., contacted → replied).
-- **Follow-up automation**: Follow-up logic exists in rules.ts but no scheduled job or automation to execute follow-ups.
-- **Emergency pause/kill switch**: `EMERGENCY_PAUSE` env var referenced but not implemented in code.
+- **Follow-up automation**: Follow-up scheduling API exists but no scheduled job/automation to execute follow-ups automatically.
+- **Webhook handling**: Webhook verification and bounce/reply/complaint handling are stubs in the adapter. Real webhook endpoints not yet implemented.
+- **AUTONOMOUS mode**: Defined in types but not enabled. Requires explicit authentication, verified integrations, and compliance safeguards before activation.
 
 ## What requires external setup
 
-1. **Supabase project**: Create a Supabase project, run `supabase/schema.sql` to create tables, enable RLS, and set up Auth.
+1. **Supabase project**: Create a Supabase project, run `supabase/schema.sql` plus migrations `002_kill_switch_and_pause.sql`, `003_idempotency_key.sql`, `004_follow_up_tracking.sql` to create tables, enable RLS, and set up Auth.
 2. **Environment variables**: Copy `.env.example` to `.env.local` and fill in:
    - `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (required for auth and data)
    - `SUPABASE_SERVICE_ROLE_KEY` (required for server-side operations)
    - `MODEL_API_KEY` (required for AI outreach generation)
-   - `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS` or `EMAIL_API_KEY` (required for sending emails)
+   - `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS` (required for real email sending; defaults to mock provider)
+   - `EMAIL_FROM_ADDRESS`, `EMAIL_FROM_NAME` (required for email sending)
+   - `EMAIL_WEBHOOK_SECRET` (required for webhook verification)
    - `ENCRYPTION_KEY` and `NEXTAUTH_SECRET` (required for security)
 3. **Model provider account**: OpenAI or compatible API account for outreach generation.
-4. **Email provider**: SMTP credentials or email API key for sending outreach.
+4. **Email provider**: SMTP credentials or email API key for sending outreach (optional; mock provider used by default).
 
 ## Test results
 
 - **Test framework**: Vitest with jsdom environment and testing-library matchers
-- **Test files**: 3
-- **Tests passed**: 57
+- **Test files**: 5
+- **Tests passed**: 77
   - `src/lib/qualification.test.ts`: 9 tests (qualification scoring, tier determination, score breakdown)
   - `src/lib/validations/workspace.test.ts`: 21 tests (Zod validation schemas for all workspace settings)
   - `src/lib/rules.test.ts`: 27 tests (deduplication, suppression, pricing floors, approved claims, DRY RUN, send limits, follow-up timing)
+  - `src/lib/send-authorization.test.ts`: 12 tests (kill switch, workspace pause, suppression, daily limits, DRY RUN detection)
+  - `src/lib/email/adapter.test.ts`: 8 tests (mock/SMTP provider selection, sendEmail, webhook, bounce, reply, complaint)
 - **TypeScript**: `tsc --noEmit` passes with zero errors
-- **ESLint**: `npm run lint` passes with zero errors and zero warnings
+- **ESLint**: `npm run lint` passes with zero errors (6 intentional warnings for adapter interface stubs)
 
-## Commit history (Stage 2)
+## Commit history (Stage 3)
 
 | Commit | Message | Files | Checks | Push |
 |--------|---------|-------|--------|------|
-| 406d42a | Fix unused imports and variables in leads table | src/components/leads-table.tsx | tsc, lint | Yes |
-| 9120293 | Fix React Compiler rules in lead evidence component | src/components/lead-evidence.tsx | tsc, lint | Yes |
-| 33436c7 | Fix React Compiler rules in workspace settings page | src/app/workspaces/settings/page.tsx | tsc, lint | Yes |
-| 67df081 | Fix React Compiler rules in outreach page | src/app/outreach/[leadId]/page.tsx | tsc, lint | Yes |
-| f83326c | Fix React Compiler rules in leads page | src/app/leads/page.tsx | tsc, lint | Yes |
-| 9f5f1e9 | Fix unused variable in lead creation form | src/app/leads/new/page.tsx | tsc, lint | Yes |
-| 05f551a | Fix any type in outreach generate API | src/app/api/outreach/generate/route.ts | tsc, lint | Yes |
-| 2fd713d | Add business rules tests | src/lib/rules.test.ts | tsc, lint, vitest (27 tests) | Yes |
-| bb06efc | Add business rules module | src/lib/rules.ts | tsc, lint | Yes |
-| e43ca28 | Add workspace settings validation tests | src/lib/validations/workspace.test.ts | tsc, lint, vitest (21 tests) | Yes |
-| ba008d6 | Add qualification scoring tests | src/lib/qualification.test.ts | tsc, lint, vitest (9 tests) | Yes |
-| ed41c42 | Add vite and testing-library/dom deps | package.json, package-lock.json | tsc, lint | Yes |
-| 984e796 | Enable vitest globals | vitest.config.ts | tsc, lint | Yes |
-| 81a256a | Add vitest setup file | vitest.setup.ts | tsc, lint | Yes |
-| 4319677 | Add vitest configuration | vitest.config.ts | tsc, lint | Yes |
-| e042702 | Add testing dependencies | package.json, package-lock.json | tsc, lint | Yes |
-| 594f81e | Add outreach AI generation API endpoint | src/app/api/outreach/generate/route.ts | tsc, lint | Yes |
-| bf42560 | Add workspace get API endpoint | src/app/api/workspaces/[workspaceId]/route.ts | tsc, lint | Yes |
-| baac038 | Add outreach draft generation page | src/app/outreach/[leadId]/page.tsx | tsc, lint | Yes |
-| 26ad431 | Add outreach list and create API endpoint | src/app/api/outreach/route.ts | tsc, lint | Yes |
-| 677d01f | Add leads table component | src/components/leads-table.tsx | tsc, lint | Yes |
-| a4c0429 | Add lead evidence component | src/components/lead-evidence.tsx | tsc, lint | Yes |
-| 9c7f135 | Add single lead get, update, archive API | src/app/api/leads/[leadId]/route.ts | tsc, lint | Yes |
-| 6443e92 | Add leads list and create API endpoint | src/app/api/leads/route.ts | tsc, lint | Yes |
-| c0d6bcb | Add new lead creation form page | src/app/leads/new/page.tsx | tsc, lint | Yes |
-| f694fd7 | Add leads pipeline page | src/app/leads/page.tsx | tsc, lint | Yes |
-| df802b2 | Add lead qualification scoring function | src/lib/qualification.ts | tsc, lint | Yes |
-| 161cbba | Add evidence create API endpoint | src/app/api/leads/[leadId]/evidence/route.ts | tsc, lint | Yes |
-| 36e600a | Add evidence delete API endpoint | src/app/api/evidence/[evidenceId]/route.ts | tsc, lint | Yes |
-| f7206dc | Add workspace settings page | src/app/workspaces/settings/page.tsx | tsc, lint | Yes |
-| 987f2c1 | Add server action to save workspace settings | src/lib/actions/workspace.ts | tsc, lint | Yes |
-| a41eff3 | Add Zod validation schema for workspace settings | src/lib/validations/workspace.ts | tsc, lint | Yes |
-| b5c6e98 | Add TypeScript types for all database tables | src/lib/database.types.ts | tsc, lint | Yes |
-| 0452b85 | Add zod dependency for validation schemas | package.json, package-lock.json | tsc, lint | Yes |
+| c05127c | Add kill switch and workspace pause controls to database | supabase/migrations/002_*.sql, supabase/schema.sql | tsc, lint | Yes |
+| 6173bf0 | Add kill switch and workspace pause server actions | src/lib/actions/killswitch.ts | tsc, lint | Yes |
+| 331c0bd | Add kill switch API route | src/app/api/kill-switch/route.ts | tsc, lint | Yes |
+| 314cd5f | Add workspace pause toggle to API | src/app/api/workspaces/[workspaceId]/route.ts | tsc, lint | Yes |
+| 4c5dea2 | Add idempotency key to outreach table | supabase/migrations/003_*.sql, supabase/schema.sql | tsc, lint | Yes |
+| 68c7305 | Add send authorization with compliance checks | src/lib/send-authorization.ts, src/lib/database.types.ts, src/lib/qualification.test.ts, src/lib/rules.test.ts | tsc, lint | Yes |
+| b7ecfd7 | Update outreach API with send authorization | src/app/api/outreach/route.ts | tsc, lint | Yes |
+| bf265b4 | Add pending_approval and rejected outreach statuses | src/lib/database.types.ts | tsc, lint | Yes |
+| d68e85b | Add SUPERVISED approval queue API | src/app/api/outreach/pending/route.ts, src/app/api/outreach/action/route.ts | tsc, lint | Yes |
+| 5476447 | Add email provider adapter interface | src/lib/email/adapter.ts | tsc, lint | Yes |
+| 8c66b9f | Add email send route with provider adapter | src/app/api/outreach/[outreachId]/send/route.ts, src/lib/email/adapter.ts | tsc, lint | Yes |
+| 35cab20 | Add follow-up tracking to outreach table | supabase/migrations/004_*.sql, supabase/schema.sql | tsc, lint | Yes |
+| 3217663 | Add follow-up scheduling and cancellation API | src/app/api/outreach/[outreachId]/follow-up/route.ts | tsc, lint | Yes |
+| 804a48b | Add path alias resolution to vitest config | vitest.config.ts | tsc, lint | Yes |
+| 979a9d1 | Add send authorization tests | src/lib/send-authorization.test.ts | tsc, lint, vitest (12 tests) | Yes |
+| 8b5d24b | Add email provider adapter tests | src/lib/email/adapter.test.ts | tsc, lint, vitest (8 tests) | Yes |
+| 128335d | Update .env.example with email provider settings | .env.example | tsc, lint | Yes |
 
-Plus initial foundation commits (1391814, 5093331, 53725b1, 9e568f4, 1d6db65).
+Plus Stage 2 and initial foundation commits.
 
 ## Most valuable next stage
 
-**Stage 3: Outreach sending and compliance**
+**Stage 4: Setup documentation, operating manual, and deployment**
 
-Implement actual email sending with provider integration (SMTP/SendGrid/Resend), per-workspace sending limits, opt-out processing from replies, follow-up automation with scheduling, and the emergency pause/kill switch. Move DRY RUN from default to configurable, and implement SUPERVISED mode with explicit approval before sending.
+Create setup documentation with step-by-step instructions for Supabase configuration, environment variable setup, and local development. Add an operating manual covering workspace configuration, outreach workflow, compliance monitoring, and incident response. Implement an honest implementation-status page. Add deployment instructions for Vercel and self-hosted options.
