@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import LeadsTable from "@/components/leads-table";
 import LeadEvidence from "@/components/lead-evidence";
@@ -18,40 +18,40 @@ export default function LeadsPage({ workspace }: LeadsPageProps) {
   const [loading, setLoading] = useState(true);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
 
-  const loadLeads = useCallback(async () => {
-    setLoading(true);
-    try {
-      const workspaceId = workspace?.id;
-      const url = workspaceId
-        ? `/api/leads?workspace_id=${workspaceId}`
-        : "/api/leads";
-      const response = await fetch(url);
-      if (response.ok) {
-        const result = await response.json();
-        setLeads(result.leads || []);
-      }
-    } catch (err) {
-      console.error("Failed to load leads", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [workspace?.id]);
-
   useEffect(() => {
-    loadLeads();
-  }, [loadLeads]);
+    let cancelled = false;
+
+    async function fetchLeads() {
+      setLoading(true);
+      try {
+        const workspaceId = workspace?.id;
+        const url = workspaceId
+          ? `/api/leads?workspace_id=${workspaceId}`
+          : "/api/leads";
+        const response = await fetch(url);
+        if (response.ok && !cancelled) {
+          const result = await response.json();
+          setLeads(result.leads || []);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error("Failed to load leads", err);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    fetchLeads();
+    return () => {
+      cancelled = true;
+    };
+  }, [workspace]);
 
   const handleCreateLead = () => {
     router.push("/leads/new");
-  };
-
-  const handleLeadSelect = (lead: Lead) => {
-    setSelectedLead(lead);
-  };
-
-  const handleLeadUpdated = (updatedLead: Lead) => {
-    setLeads((prev) => prev.map((l) => (l.id === updatedLead.id ? updatedLead : l)));
-    setSelectedLead(updatedLead);
   };
 
   return (
