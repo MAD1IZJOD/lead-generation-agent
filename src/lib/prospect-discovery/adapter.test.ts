@@ -15,7 +15,6 @@ describe("createProspectDiscoveryProvider", () => {
   it("returns mock provider when no API credentials are configured", () => {
     const provider = createProspectDiscoveryProvider({
       provider: "api",
-      fromAddress: "test@example.com",
       testMode: false,
     });
     expect(provider.name).toBe("mock");

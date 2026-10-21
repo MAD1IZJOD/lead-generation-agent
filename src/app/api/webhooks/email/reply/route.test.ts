@@ -4,24 +4,13 @@ vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(),
 }));
 
+const mockFrom = vi.fn();
 const mockSupabase = {
-  from: vi.fn(),
+  from: mockFrom,
   auth: {
     getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
   },
 };
-
-vi.mocked(mockSupabase.from).mockReturnValue({
-  select: vi.fn().mockReturnValue({
-    eq: vi.fn().mockReturnValue({
-      in: vi.fn().mockResolvedValue({ data: null, error: null }),
-    }),
-  }),
-  insert: vi.fn().mockResolvedValue({ data: null, error: null }),
-  update: vi.fn().mockReturnValue({
-    eq: vi.fn().mockResolvedValue({ data: null, error: null }),
-  }),
-} as any);
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(() => Promise.resolve(mockSupabase)),
@@ -30,6 +19,17 @@ vi.mock("@/lib/supabase/server", () => ({
 describe("Reply webhook", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    mockFrom.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          in: vi.fn().mockResolvedValue({ data: null, error: null }),
+        }),
+      }),
+      insert: vi.fn().mockResolvedValue({ data: null, error: null }),
+      update: vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ data: null, error: null }),
+      }),
+    });
   });
 
   it("returns 401 when webhook signature is missing", async () => {
