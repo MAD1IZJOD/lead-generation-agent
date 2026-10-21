@@ -43,7 +43,7 @@ export default function NewLeadPage() {
         return;
       }
 
-      const result = await response.json();
+      await response.json();
       router.push(`/leads`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create lead");
