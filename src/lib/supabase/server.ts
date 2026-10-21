@@ -2,8 +2,8 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-export function createClient() {
-  const cookieStore = cookies();
+export async function createClient() {
+  const cookieStore = await cookies();
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -24,8 +24,8 @@ export function createClient() {
   );
 }
 
-export function createClientWithRedirect() {
-  const supabase = createClient();
+export async function createClientWithRedirect() {
+  const supabase = await createClient();
 
   return {
     ...supabase,
