@@ -60,6 +60,50 @@
 - **TypeScript**: `tsc --noEmit` passes with zero errors
 - **ESLint**: `npm run lint` passes with zero errors (6 intentional warnings for adapter interface stubs)
 
+## Eight-Phase Roadmap
+
+| Phase | Name | Status | Description |
+|-------|------|--------|-------------|
+| 1 | Project Foundation | Complete | Repository setup, README, .gitignore, initial commit |
+| 2 | Project Configuration | Complete | Package name, .env.example, Supabase schema, workspace isolation RLS |
+| 3 | Application Shell & Authentication | Complete | Next.js app, login/signup/dashboard, Supabase auth, middleware |
+| 4 | Prospect Discovery and Research | In Progress | Workspace configuration, lead management, evidence, qualification, prospect discovery, email provider integration, webhook endpoints, setup documentation |
+| 5 | Outreach Sending and Compliance | Complete | Kill switch, workspace pause, send authorization, idempotency keys, SUPERVISED queue, email provider adapter, follow-up scheduling |
+| 6 | Testing and Verification | Complete | 77 tests passing, TypeScript and ESLint clean |
+| 7 | Security, Reliability, and End-to-End Hardening | Not Started | Security audit, rate monitoring, cost ceilings, emergency procedures |
+| 8 | Deployment and Production Readiness | Not Started | Vercel deployment, production monitoring, operating manual |
+
+## Phase 4: Prospect Discovery and Research — Layers
+
+### Layer 1: Real Prospect Discovery and Research
+- Prospect discovery provider integration (stub exists; real provider not yet connected)
+- Research evidence storage with source URLs and confidence scores (implemented)
+- Lead deduplication within workspace (implemented)
+- Qualification scoring with breakdown (implemented)
+
+### Layer 2: Actual Email Provider Integration
+- Email provider adapter interface (implemented — mock and SMTP)
+- SMTP provider credentials configured server-side only
+- **NOT YET**: Verified using an address you control — requires SMTP credentials in `.env.local`
+
+### Layer 3: Signed Webhook Endpoints and Background Jobs
+- Webhook verification stubs in adapter (implemented but not connected to routes)
+- **NOT YET**: Signed webhook HTTP routes for bounce/reply/complaint
+- **NOT YET**: Durable background jobs for follow-ups, retries, cancellation
+
+### Layer 4: Complete Setup Documentation
+- Setup documentation for Supabase and environment variables (partial)
+- **NOT YET**: Operating manual, deployment instructions
+
+## Phase 4 Exit Criteria (not yet met)
+- [ ] Real prospect discovery connected to a provider you control
+- [ ] Email provider integration verified with an address you control
+- [ ] Signed webhook endpoints implemented and tested
+- [ ] Durable background jobs for follow-ups, retries, cancellation
+- [ ] Complete setup documentation, operating manual, and deployment instructions
+- [ ] DRY RUN remains default; no real emails sent in tests
+- [ ] Explicit approval required before contacting actual prospects
+
 ## Commit history (Stage 3)
 
 | Commit | Message | Files | Checks | Push |
@@ -81,11 +125,16 @@
 | 979a9d1 | Add send authorization tests | src/lib/send-authorization.test.ts | tsc, lint, vitest (12 tests) | Yes |
 | 8b5d24b | Add email provider adapter tests | src/lib/email/adapter.test.ts | tsc, lint, vitest (8 tests) | Yes |
 | 128335d | Update .env.example with email provider settings | .env.example | tsc, lint | Yes |
+| 2826c8c | Update build status documentation for Stage 3 | docs/BUILD_STATUS.md | tsc, lint | Yes |
+| a73de20 | Set pending_approval status for SUPERVISED mode outreach | src/app/api/outreach/route.ts | tsc, lint | Yes |
 
 Plus Stage 2 and initial foundation commits.
 
-## Most valuable next stage
+## Missing Credentials / External Setup Blocking Verification
 
-**Stage 4: Setup documentation, operating manual, and deployment**
+- **SMTP credentials** (`SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`) — not configured; email provider defaults to mock
+- **Email address you control** — not provided; cannot verify real email delivery
+- **`MODEL_API_KEY`** — not configured; AI outreach generation returns 503
+- **`EMAIL_WEBHOOK_SECRET`** — not configured; webhook verification cannot be tested
 
-Create setup documentation with step-by-step instructions for Supabase configuration, environment variable setup, and local development. Add an operating manual covering workspace configuration, outreach workflow, compliance monitoring, and incident response. Implement an honest implementation-status page. Add deployment instructions for Vercel and self-hosted options.
+These must be provided before Phase 4 Layer 2 (email provider integration verified) and Layer 3 (webhook endpoints) can be demonstrated end-to-end.
