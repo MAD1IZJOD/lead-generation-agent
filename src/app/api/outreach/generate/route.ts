@@ -87,8 +87,14 @@ export async function POST(request: Request) {
 
   const approvedClaims = (workspace.approved_claims || [] as string[]).join(", ");
   const brandVoice = workspace.brand_voice || {};
-  const services = (workspace.services || [])
-    .map((s: any) => `- ${s.name}: ${s.description} (starting at ${s.currency} ${s.starting_price_usd})`)
+  const servicesArray = (workspace.services || []) as Array<{
+    name: string;
+    description: string;
+    starting_price_usd: number;
+    currency: string;
+  }>;
+  const services = servicesArray
+    .map((s) => `- ${s.name}: ${s.description} (starting at ${s.currency} ${s.starting_price_usd})`)
     .join("\n");
 
   const prompt = `You are a sales outreach assistant for ${workspace.company_profile?.company_name || "a company"}.
