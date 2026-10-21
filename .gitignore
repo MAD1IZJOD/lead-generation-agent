@@ -52,3 +52,4 @@ dist/
 build/
 *.egg-info/
 *.egg
+.tsbuildinfo
