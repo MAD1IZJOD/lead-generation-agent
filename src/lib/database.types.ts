@@ -10,6 +10,9 @@ export interface Workspace {
   approved_claims: string[];
   brand_voice: WorkspaceBrandVoice;
   outreach_rules: WorkspaceOutreachRules;
+  paused: boolean;
+  paused_at: string | null;
+  pause_reason: string | null;
   created_at: string;
   updated_at: string;
 }
