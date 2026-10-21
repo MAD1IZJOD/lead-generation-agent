@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import type { Lead } from "@/lib/database.types";
 
 interface LeadsTableProps {
@@ -57,7 +57,7 @@ export default function LeadsTable({ initialLeads }: LeadsTableProps) {
       } else {
         alert("Failed to save changes");
       }
-    } catch (err) {
+    } catch {
       alert("Error saving changes");
     }
   };
@@ -73,7 +73,7 @@ export default function LeadsTable({ initialLeads }: LeadsTableProps) {
       } else {
         alert("Failed to archive lead");
       }
-    } catch (err) {
+    } catch {
       alert("Error archiving lead");
     }
   };
