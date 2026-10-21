@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { saveWorkspaceSettings, getWorkspaceSettings } from "@/lib/actions/workspace";
 import type { WorkspaceSettingsInput } from "@/lib/validations/workspace";
 
@@ -10,25 +10,36 @@ export default function WorkspaceSettingsPage() {
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [formData, setFormData] = useState<WorkspaceSettingsInput | null>(null);
 
-  const loadSettings = useCallback(async () => {
-    setLoading(true);
-    try {
-      const result = await getWorkspaceSettings();
-      if (result.error) {
-        setMessage({ type: "error", text: result.error });
-      } else if (result.workspace) {
-        setFormData(result.workspace as unknown as WorkspaceSettingsInput);
-      }
-    } catch (err) {
-      setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed to load settings" });
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    loadSettings();
-  }, [loadSettings]);
+    let cancelled = false;
+
+    async function fetchSettings() {
+      setLoading(true);
+      try {
+        const result = await getWorkspaceSettings();
+        if (!cancelled) {
+          if (result.error) {
+            setMessage({ type: "error", text: result.error });
+          } else if (result.workspace) {
+            setFormData(result.workspace as unknown as WorkspaceSettingsInput);
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          setMessage({ type: "error", text: "Failed to load settings" });
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    fetchSettings();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleSave = async (formData: WorkspaceSettingsInput) => {
     setSaving(true);
@@ -39,10 +50,20 @@ export default function WorkspaceSettingsPage() {
         setMessage({ type: "error", text: result.error });
       } else {
         setMessage({ type: "success", text: "Workspace settings saved successfully" });
-        await loadSettings();
+        setLoading(true);
+        try {
+          const result = await getWorkspaceSettings();
+          if (result.workspace) {
+            setFormData(result.workspace as unknown as WorkspaceSettingsInput);
+          }
+        } catch {
+          setMessage({ type: "error", text: "Failed to reload settings" });
+        } finally {
+          setLoading(false);
+        }
       }
-    } catch (err) {
-      setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed to save settings" });
+    } catch {
+      setMessage({ type: "error", text: "Failed to save settings" });
     } finally {
       setSaving(false);
     }
