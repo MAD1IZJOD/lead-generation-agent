@@ -102,7 +102,7 @@ export interface Outreach {
   updated_at: string;
 }
 
-export type OutreachStatus = "draft" | "sent" | "delivered" | "opened" | "replied" | "bounced" | "failed";
+export type OutreachStatus = "draft" | "pending_approval" | "approved" | "sent" | "delivered" | "opened" | "replied" | "bounced" | "failed" | "rejected";
 
 export interface SuppressionEntry {
   id: string;
