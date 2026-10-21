@@ -5,6 +5,20 @@
 create extension if not exists "pgcrypto";
 
 -- ---------------------------------------------------------------
+# System settings: global configuration including kill switch
+-- ---------------------------------------------------------------
+create table system_settings (
+  key text primary key,
+  value jsonb not null default '{}',
+  updated_at timestamptz not null default now()
+);
+
+-- Default kill switch setting (disabled)
+insert into system_settings (key, value)
+values ('kill_switch', '{"enabled": false, "reason": null, "activated_at": null, "activated_by": null}')
+on conflict (key) do nothing;
+
+-- ---------------------------------------------------------------
 # Workspaces: isolated containers for each business configuration
 -- ---------------------------------------------------------------
 create table workspaces (
@@ -19,6 +33,9 @@ create table workspaces (
   approved_claims jsonb not null default '[]',
   brand_voice jsonb not null default '{}',
   outreach_rules jsonb not null default '{}',
+  paused boolean not null default false,
+  paused_at timestamptz,
+  pause_reason text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -153,6 +170,7 @@ create table cost_records (
 -- ---------------------------------------------------------------
 # Row-Level Security: every table is isolated by workspace_id
 -- ---------------------------------------------------------------
+alter table system_settings enable row level security;
 alter table workspaces enable row level security;
 alter table workspace_members enable row level security;
 alter table leads enable row level security;
@@ -246,6 +264,10 @@ create policy costs_isolated_by_workspace on cost_records
     )
   );
 
+-- System settings: visible to authenticated users
+create policy system_settings_visible_to_authenticated on system_settings
+  for select using (auth.uid() is not null);
+
 -- ---------------------------------------------------------------
 # Updated_at triggers
 -- ---------------------------------------------------------------
@@ -267,4 +289,8 @@ create trigger update_leads_updated_at
 
 create trigger update_outreach_updated_at
   before update on outreach for each row
+  execute function update_updated_at_column();
+
+create trigger update_system_settings_updated_at
+  before update on system_settings for each row
   execute function update_updated_at_column();
