@@ -54,6 +54,29 @@ export interface ProspectDiscoveryConfig {
 }
 
 /**
+ * Create a prospect discovery provider from environment variables.
+ * Reads PROSPECT_DISCOVERY_PROVIDER, PROSPECT_DISCOVERY_API_KEY,
+ * and PROSPECT_DISCOVERY_API_BASE_URL from process.env.
+ * Defaults to mock provider when no credentials are configured.
+ */
+export function createProviderFromEnv(): ProspectDiscoveryProvider {
+  const provider = (process.env.PROSPECT_DISCOVERY_PROVIDER as
+    | "mock"
+    | "api"
+    | undefined) ?? "mock";
+  const apiKey = process.env.PROSPECT_DISCOVERY_API_KEY;
+  const apiBaseUrl = process.env.PROSPECT_DISCOVERY_API_BASE_URL;
+  const testMode = provider === "mock" || !apiKey || !apiBaseUrl;
+
+  return createProspectDiscoveryProvider({
+    provider,
+    apiKey,
+    apiBaseUrl,
+    testMode,
+  });
+}
+
+/**
  * Create a prospect discovery provider based on configuration.
  * Returns a mock provider when no credentials are configured
  * or when testMode is enabled.
