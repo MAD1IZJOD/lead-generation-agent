@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 interface LeadEvidenceItem {
   id: string;
@@ -24,9 +24,9 @@ export default function LeadEvidence({ leadId, initialEvidence }: LeadEvidencePr
   const [confidence, setConfidence] = useState("0.80");
   const [adding, setAdding] = useState(false);
 
-  useEffect(() => {
-    setEvidence(initialEvidence);
-  }, [initialEvidence]);
+  // Evidence state is initialized from initialEvidence prop.
+  // When a different lead is selected, the parent re-renders this
+  // component with new props, and useState picks up the new value.
 
   const handleAddEvidence = async () => {
     if (!claim.trim()) return;
@@ -53,7 +53,7 @@ export default function LeadEvidence({ leadId, initialEvidence }: LeadEvidencePr
       } else {
         alert("Failed to add evidence");
       }
-    } catch (err) {
+    } catch {
       alert("Error adding evidence");
     } finally {
       setAdding(false);
@@ -71,7 +71,7 @@ export default function LeadEvidence({ leadId, initialEvidence }: LeadEvidencePr
       } else {
         alert("Failed to remove evidence");
       }
-    } catch (err) {
+    } catch {
       alert("Error removing evidence");
     }
   };
