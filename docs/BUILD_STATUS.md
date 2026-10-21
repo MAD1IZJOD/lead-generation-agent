@@ -23,19 +23,19 @@
 - **Email sending**: Mock provider is default (logs but does not send). SMTP provider available when credentials configured but not tested with real SMTP server. No real emails sent during development or testing.
 - **Model provider**: OpenAI-compatible API supported in code but requires `MODEL_API_KEY` in `.env.local`. No real calls are made during tests.
 - **Calendar integration**: Google Calendar provider referenced in `.env.example` but not implemented.
-- **Prospect discovery**: Discovery provider referenced in `.env.example` but not implemented.
+- **Prospect discovery**: Discovery provider adapter implemented but not connected to a real provider. Requires API credentials in `.env.local`.
 - **Revenue tracking**: Database schema exists but no UI or business logic for recording revenue.
 - **Cost tracking**: Database schema exists but no UI or business logic for tracking operating costs.
 - **Audit log viewing**: Audit logs are written to the database but there is no UI to view them.
 - **Workspace listing/creation**: Users can edit their workspace settings but cannot create new workspaces or view a list of workspaces.
 - **Lead status transitions**: Status can be set manually but no automatic transitions (e.g., contacted → replied).
-- **Follow-up automation**: Follow-up scheduling API exists but no scheduled job/automation to execute follow-ups automatically.
-- **Webhook handling**: Webhook verification and bounce/reply/complaint handling are stubs in the adapter. Real webhook endpoints not yet implemented.
+- **Follow-up automation**: Follow-up scheduling API and cron route implemented. Requires a cron scheduler (e.g., Vercel Cron) to execute automatically.
+- **Webhook handling**: Signed webhook endpoints implemented for bounce, reply, and complaint. Adapter verification stubs remain. Requires `EMAIL_WEBHOOK_SECRET` to be configured.
 - **AUTONOMOUS mode**: Defined in types but not enabled. Requires explicit authentication, verified integrations, and compliance safeguards before activation.
 
 ## What requires external setup
 
-1. **Supabase project**: Create a Supabase project, run `supabase/schema.sql` plus migrations `002_kill_switch_and_pause.sql`, `003_idempotency_key.sql`, `004_follow_up_tracking.sql` to create tables, enable RLS, and set up Auth.
+1. **Supabase project**: Create a Supabase project, run `supabase/schema.sql` plus migrations `002_kill_switch_and_pause.sql`, `003_idempotency_key.sql`, `004_follow_up_tracking.sql`, `005_background_jobs.sql` to create tables, enable RLS, and set up Auth.
 2. **Environment variables**: Copy `.env.example` to `.env.local` and fill in:
    - `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (required for auth and data)
    - `SUPABASE_SERVICE_ROLE_KEY` (required for server-side operations)
@@ -43,6 +43,7 @@
    - `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS` (required for real email sending; defaults to mock provider)
    - `EMAIL_FROM_ADDRESS`, `EMAIL_FROM_NAME` (required for email sending)
    - `EMAIL_WEBHOOK_SECRET` (required for webhook verification)
+   - `CRON_SECRET` (required for cron endpoint protection)
    - `ENCRYPTION_KEY` and `NEXTAUTH_SECRET` (required for security)
 3. **Model provider account**: OpenAI or compatible API account for outreach generation.
 4. **Email provider**: SMTP credentials or email API key for sending outreach (optional; mock provider used by default).
@@ -50,15 +51,20 @@
 ## Test results
 
 - **Test framework**: Vitest with jsdom environment and testing-library matchers
-- **Test files**: 5
-- **Tests passed**: 77
+- **Test files**: 10
+- **Tests passed**: 90
   - `src/lib/qualification.test.ts`: 9 tests (qualification scoring, tier determination, score breakdown)
   - `src/lib/validations/workspace.test.ts`: 21 tests (Zod validation schemas for all workspace settings)
   - `src/lib/rules.test.ts`: 27 tests (deduplication, suppression, pricing floors, approved claims, DRY RUN, send limits, follow-up timing)
   - `src/lib/send-authorization.test.ts`: 12 tests (kill switch, workspace pause, suppression, daily limits, DRY RUN detection)
   - `src/lib/email/adapter.test.ts`: 8 tests (mock/SMTP provider selection, sendEmail, webhook, bounce, reply, complaint)
+  - `src/lib/prospect-discovery/adapter.test.ts`: 5 tests (provider selection, mock discoverProspects, mock enrichProspect)
+  - `src/app/api/webhooks/email/bounce/route.test.ts`: 2 tests (missing/invalid webhook signature)
+  - `src/app/api/webhooks/email/reply/route.test.ts`: 2 tests (missing/invalid webhook signature)
+  - `src/app/api/webhooks/email/complaint/route.test.ts`: 2 tests (missing/invalid webhook signature)
+  - `src/app/api/cron/process-follow-ups/route.test.ts`: 2 tests (missing/invalid cron secret)
 - **TypeScript**: `tsc --noEmit` passes with zero errors
-- **ESLint**: `npm run lint` passes with zero errors (6 intentional warnings for adapter interface stubs)
+- **ESLint**: `npm run lint` passes with zero errors (7 intentional warnings for adapter interface stubs)
 
 ## Eight-Phase Roadmap
 
@@ -76,30 +82,37 @@
 ## Phase 4: Prospect Discovery and Research — Layers
 
 ### Layer 1: Real Prospect Discovery and Research
-- Prospect discovery provider integration (stub exists; real provider not yet connected)
+- Prospect discovery provider adapter implemented (`src/lib/prospect-discovery/adapter.ts`) with mock and API implementations
 - Research evidence storage with source URLs and confidence scores (implemented)
 - Lead deduplication within workspace (implemented)
 - Qualification scoring with breakdown (implemented)
+- **Still needed**: Connect to a real prospect discovery provider you control
 
 ### Layer 2: Actual Email Provider Integration
-- Email provider adapter interface (implemented — mock and SMTP)
+- Email provider adapter interface implemented with mock (default) and SMTP implementations
 - SMTP provider credentials configured server-side only
 - **NOT YET**: Verified using an address you control — requires SMTP credentials in `.env.local`
 
 ### Layer 3: Signed Webhook Endpoints and Background Jobs
-- Webhook verification stubs in adapter (implemented but not connected to routes)
-- **NOT YET**: Signed webhook HTTP routes for bounce/reply/complaint
-- **NOT YET**: Durable background jobs for follow-ups, retries, cancellation
+- Signed webhook endpoints implemented:
+  - `POST /api/webhooks/email/bounce` — bounce handling, suppression list, follow-up cancellation
+  - `POST /api/webhooks/email/reply` — reply handling, follow-up cancellation
+  - `POST /api/webhooks/email/complaint` — complaint handling, suppression list, follow-up cancellation
+- All webhook endpoints verify signatures using `EMAIL_WEBHOOK_SECRET`
+- Background jobs table created (`supabase/migrations/005_background_jobs.sql`)
+- Cron route for processing due follow-ups: `GET /api/cron/process-follow-ups`
+- **NOT YET**: Durable background job worker (cron route exists but needs a scheduler like Vercel Cron)
 
 ### Layer 4: Complete Setup Documentation
-- Setup documentation for Supabase and environment variables (partial)
+- Setup documentation partial in BUILD_STATUS.md
 - **NOT YET**: Operating manual, deployment instructions
 
 ## Phase 4 Exit Criteria (not yet met)
 - [ ] Real prospect discovery connected to a provider you control
 - [ ] Email provider integration verified with an address you control
-- [ ] Signed webhook endpoints implemented and tested
-- [ ] Durable background jobs for follow-ups, retries, cancellation
+- [x] Signed webhook endpoints implemented and tested
+- [x] Cron route for follow-up processing implemented and tested
+- [ ] Durable background job worker (needs cron scheduler)
 - [ ] Complete setup documentation, operating manual, and deployment instructions
 - [ ] DRY RUN remains default; no real emails sent in tests
 - [ ] Explicit approval required before contacting actual prospects
@@ -128,7 +141,25 @@
 | 2826c8c | Update build status documentation for Stage 3 | docs/BUILD_STATUS.md | tsc, lint | Yes |
 | a73de20 | Set pending_approval status for SUPERVISED mode outreach | src/app/api/outreach/route.ts | tsc, lint | Yes |
 
-Plus Stage 2 and initial foundation commits.
+## Phase 4 commits
+
+| Commit | Message | Files | Checks | Push |
+|--------|---------|-------|--------|------|
+| 22a8443 | Add eight-phase roadmap and Phase 4 layers to build status | docs/BUILD_STATUS.md | tsc, lint | Yes |
+| b2b0aa6 | Add prospect discovery provider adapter | src/lib/prospect-discovery/adapter.ts | tsc, lint | Yes |
+| f376c7f | Add signed email bounce webhook endpoint | src/app/api/webhooks/email/bounce/route.ts | tsc, lint | Yes |
+| f1b1ce5 | Add signed email reply webhook endpoint | src/app/api/webhooks/email/reply/route.ts | tsc, lint | Yes |
+| 55cc61f | Add signed email complaint webhook endpoint | src/app/api/webhooks/email/complaint/route.ts | tsc, lint | Yes |
+| 85d0f27 | Add background jobs table for durable follow-up processing | supabase/migrations/005_background_jobs.sql | tsc, lint | Yes |
+| 301c776 | Add cron route for processing due follow-ups | src/app/api/cron/process-follow-ups/route.ts | tsc, lint | Yes |
+| 100d4ea | Add prospect discovery adapter tests | src/lib/prospect-discovery/adapter.test.ts | tsc, lint, vitest (5 tests) | Yes |
+| 118ebae | Add bounce webhook endpoint tests | src/app/api/webhooks/email/bounce/route.test.ts | tsc, lint, vitest (2 tests) | Yes |
+| 1ee603e | Add reply webhook endpoint tests | src/app/api/webhooks/email/reply/route.test.ts | tsc, lint, vitest (2 tests) | Yes |
+| 93eae36 | Add complaint webhook endpoint tests | src/app/api/webhooks/email/complaint/route.test.ts | tsc, lint, vitest (2 tests) | Yes |
+| 11caa47 | Add cron route tests for follow-up processing | src/app/api/cron/process-follow-ups/route.test.ts | tsc, lint, vitest (2 tests) | Yes |
+| 020926c | Fix type errors in test files | 4 test files | tsc, lint | Yes |
+
+Plus Stage 2, Stage 3, and initial foundation commits.
 
 ## Missing Credentials / External Setup Blocking Verification
 
@@ -136,5 +167,7 @@ Plus Stage 2 and initial foundation commits.
 - **Email address you control** — not provided; cannot verify real email delivery
 - **`MODEL_API_KEY`** — not configured; AI outreach generation returns 503
 - **`EMAIL_WEBHOOK_SECRET`** — not configured; webhook verification cannot be tested
+- **`CRON_SECRET`** — not configured; cron endpoint cannot be invoked
+- **Prospect discovery API key and base URL** — not configured; discovery defaults to mock
 
-These must be provided before Phase 4 Layer 2 (email provider integration verified) and Layer 3 (webhook endpoints) can be demonstrated end-to-end.
+These must be provided before Phase 4 Layer 2 (email provider integration verified) and full end-to-end verification can be demonstrated.
