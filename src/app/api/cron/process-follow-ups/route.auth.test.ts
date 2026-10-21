@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(),
@@ -60,7 +61,9 @@ describe("Cron authentication", () => {
     process.env.CRON_SECRET = "test-cron-secret-do-not-commit";
     process.env.NEXT_PUBLIC_SUPABASE_URL = "http://localhost:54321";
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "test-anon-key";
-    mockCreateClient.mockResolvedValue(mockSupabase as any);
+    mockCreateClient.mockResolvedValue(
+      mockSupabase as unknown as SupabaseClient
+    );
   });
 
   afterEach(() => {
