@@ -104,10 +104,23 @@ create table outreach (
   evidence_citations jsonb not null default '[]', -- evidence ids cited in this message
   status text not null default 'draft', -- draft, sent, delivered, opened, replied, bounced, failed
   idempotency_key text,
+  follow_up_count integer not null default 0,
+  original_outreach_id uuid references outreach(id),
+  next_follow_up_at timestamptz,
+  max_follow_ups integer not null default 2,
   sent_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Index for finding due follow-ups
+create index outreach_next_follow_up_idx
+  on outreach (next_follow_up_at)
+  where next_follow_up_at is not null and follow_up_count < max_follow_ups;
+
+-- Index for finding follow-ups of an original outreach
+create index outreach_original_outreach_idx
+  on outreach (original_outreach_id);
 
 -- Prevent duplicate sends to same lead within suppression window
 create index outreach_lead_status_idx on outreach (lead_id, status);
