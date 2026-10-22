@@ -128,6 +128,7 @@ export function extractCompanyName(
 
   const cleaned = candidate
     .replace(/\|.*$/g, "")
+    .replace(/ - .*$/g, "")
     .trim();
 
   if (cleaned.length > 0 && cleaned.length < 100) {
