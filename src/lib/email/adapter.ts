@@ -33,6 +33,7 @@ export interface BounceEvent {
 
 export interface ReplyEvent {
   email: string;
+  text?: string;
   messageId?: string;
   timestamp: string;
 }
