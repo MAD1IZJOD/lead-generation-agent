@@ -7,7 +7,7 @@ import {
 } from "./adapter";
 
 describe("MockCalendarAdapter", () => {
-  let adapter: CalendarAdapter;
+  let adapter: MockCalendarAdapter;
 
   beforeEach(() => {
     adapter = new MockCalendarAdapter();
@@ -155,7 +155,7 @@ describe("MockCalendarAdapter", () => {
     });
 
     it("throws for unsupported providers", () => {
-      expect(() => createCalendarAdapter("google" as any)).toThrow();
+      expect(() => createCalendarAdapter("google")).toThrow();
     });
   });
 });
