@@ -4,8 +4,9 @@ import {
   type ReplyDraft,
 } from "./reply-generator";
 import type { ReplyClassification } from "./message-classifier";
+import type { Workspace } from "@/lib/database.types";
 
-const baseWorkspace = {
+const baseWorkspace: Workspace = {
   id: "ws-1",
   name: "Test Workspace",
   slug: "test-workspace",
@@ -56,6 +57,9 @@ const baseWorkspace = {
   },
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-01T00:00:00Z",
+  paused: false,
+  paused_at: null,
+  pause_reason: null,
 };
 
 describe("generateReply", () => {
