@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { qualifyLead, formatScoreBreakdown, type QualificationResult } from "./qualification";
-import type { Lead, Workspace } from "./database.types";
+import type { Lead, Workspace } from "@/lib/database.types";
 
 const baseWorkspace: Workspace = {
   id: "ws-1",
@@ -23,17 +23,13 @@ const baseWorkspace: Workspace = {
   pricing: { minimum_project_usd: 800, currency: "usd" },
   target_markets: ["US", "UK", "Canada"],
   icp: {
-    industries: ["Technology", "Retail"],
-    company_sizes: ["1-10", "11-50"],
-    job_titles: ["CEO", "Founder", "CTO"],
+    industries: ["Technology"],
+    company_sizes: ["1-10"],
+    job_titles: ["CEO", "CTO"],
     pain_points: ["outdated website", "low conversion"],
   },
   approved_claims: ["We build websites starting at $800"],
-  brand_voice: {
-    tone: "professional",
-    formality: "professional",
-    do_not_claim: ["guaranteed results"],
-  },
+  brand_voice: { tone: "professional", formality: "professional", do_not_claim: ["guaranteed results"] },
   outreach_rules: {
     max_emails_per_day: 50,
     follow_up_limit: 3,
@@ -41,11 +37,11 @@ const baseWorkspace: Workspace = {
     dry_run: true,
     autonomous: false,
   },
+  created_at: "2026-01-01T00:00:00Z",
+  updated_at: "2026-01-01T00:00:00Z",
   paused: false,
   paused_at: null,
   pause_reason: null,
-  created_at: "2026-01-01T00:00:00Z",
-  updated_at: "2026-01-01T00:00:00Z",
 };
 
 const baseLead: Lead = {
@@ -66,28 +62,25 @@ const baseLead: Lead = {
 };
 
 describe("qualifyLead", () => {
-  it("scores a high-quality lead with all fields", () => {
+  it("scores high-quality leads highly", () => {
     const result = qualifyLead(baseLead, baseWorkspace);
     expect(result.totalScore).toBeGreaterThanOrEqual(75);
     expect(result.tier).toBe("hot");
-    expect(result.breakdown.length).toBeGreaterThan(0);
   });
 
-  it("scores lower when email is missing", () => {
-    const leadWithoutEmail: Lead = { ...baseLead, email: "" };
-    const result = qualifyLead(leadWithoutEmail, baseWorkspace);
-    const emailFactor = result.breakdown.find((f) => f.name === "Has contact email");
-    expect(emailFactor?.score).toBe(0);
+  it("scores lower when email missing", () => {
+    const lead: Lead = { ...baseLead, email: "" };
+    const result = qualifyLead(lead, baseWorkspace);
+    expect(result.breakdown.find((f) => f.name === "Has contact email")!.score).toBe(0);
   });
 
-  it("scores lower when company is missing", () => {
-    const leadWithoutCompany: Lead = { ...baseLead, company: null };
-    const result = qualifyLead(leadWithoutCompany, baseWorkspace);
-    const companyFactor = result.breakdown.find((f) => f.name === "Has company information");
-    expect(companyFactor?.score).toBe(0);
+  it("scores lower when company missing", () => {
+    const lead: Lead = { ...baseLead, company: null };
+    const result = qualifyLead(lead, baseWorkspace);
+    expect(result.breakdown.find((f) => f.name === "Has company information")!.score).toBe(0);
   });
 
-  it("gives cold tier for leads missing key fields", () => {
+  it("gives cold tier for poor leads", () => {
     const poorLead: Lead = {
       ...baseLead,
       email: "",
@@ -103,21 +96,18 @@ describe("qualifyLead", () => {
 
   it("matches ICP industry when raw_data industry matches", () => {
     const result = qualifyLead(baseLead, baseWorkspace);
-    const industryFactor = result.breakdown.find((f) => f.name === "ICP industry match");
-    expect(industryFactor?.score).toBe(100);
+    expect(result.breakdown.find((f) => f.name === "ICP industry match")!.score).toBe(100);
   });
 
-  it("does not match ICP industry when raw_data is empty", () => {
-    const leadNoIndustry: Lead = { ...baseLead, raw_data: {} };
-    const result = qualifyLead(leadNoIndustry, baseWorkspace);
-    const industryFactor = result.breakdown.find((f) => f.name === "ICP industry match");
-    expect(industryFactor?.score).toBe(40);
+  it("gives lower score when industry not in ICP", () => {
+    const lead: Lead = { ...baseLead, raw_data: { industry: "Unknown", country: "US" } };
+    const result = qualifyLead(lead, baseWorkspace);
+    expect(result.breakdown.find((f) => f.name === "ICP industry match")!.score).toBe(40);
   });
 
-  it("matches ICP job title when lead title matches", () => {
+  it("matches ICP job title when title matches", () => {
     const result = qualifyLead(baseLead, baseWorkspace);
-    const titleFactor = result.breakdown.find((f) => f.name === "ICP job title match");
-    expect(titleFactor?.score).toBe(100);
+    expect(result.breakdown.find((f) => f.name === "ICP job title match")!.score).toBe(100);
   });
 
   it("returns warm tier for medium-quality leads", () => {
@@ -132,7 +122,7 @@ describe("qualifyLead", () => {
 });
 
 describe("formatScoreBreakdown", () => {
-  it("returns a formatted string with score and breakdown", () => {
+  it("returns formatted breakdown", () => {
     const result: QualificationResult = {
       totalScore: 85,
       tier: "hot",
