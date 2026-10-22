@@ -1,13 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
-import {
-  crawlPages,
-} from "./page-fetcher";
-import type { CrawledPage, CompanyProfile, DiscoveryConfig, DiscoveryInput, SeedUrl } from "./types";
+import { crawlPages } from "./page-fetcher";
+import type { CompanyProfile, DiscoveryConfig, DiscoveryInput, DiscoveryError, SeedUrl } from "./types";
 import {
   detectPageLabel,
   extractCompanyProfile,
-  mergeCompanyProfiles,
 } from "./page-parser";
 import { normalizeSeedUrls } from "./url-utils";
 import { deduplicateCompanies, profileToLeadRawData } from "./deduplicator";
@@ -28,22 +25,26 @@ import type { Lead, Workspace } from "@/lib/database.types";
  *
  * DRY RUN: This workflow never sends emails or contacts prospects.
  * It only reads public web pages and creates lead records internally.
+ *
+ * @param input - Discovery input with workspaceId and seed URLs
+ * @param supabaseClient - Optional Supabase client for testing
  */
 export async function runDiscovery(
-  input: DiscoveryInput
+  input: DiscoveryInput,
+  supabaseClient?: any // eslint-disable-line @typescript-eslint/no-explicit-any
 ): Promise<{
   success: boolean;
   result?: {
-    companies: import("./types").CompanyProfile[];
+    companies: CompanyProfile[];
     leadsCreated: number;
     deduplicatedCount: number;
     totalPagesFetched: number;
-    errors: import("./types").DiscoveryError[];
+    errors: DiscoveryError[];
   };
   error?: string;
 }> {
   // Step 1: Authenticate and verify workspace membership
-  const supabase = await createClient();
+  const supabase = supabaseClient || (await createClient());
   const user = await getCurrentUser();
 
   if (!user) {
@@ -104,8 +105,7 @@ export async function runDiscovery(
     return {
       success: false,
       error: "No pages could be fetched",
-      // Include crawl errors for debugging
-    } as any;
+    };
   }
 
   // Step 4: Parse pages into company profiles
