@@ -2,7 +2,27 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createEmailProvider, type EmailProviderConfig } from "@/lib/email/adapter";
+import {
+  classifyReply,
+  requiresHumanReview,
+  shouldStopFollowUps,
+  type ClassificationResult,
+  type ReplyClassification,
+} from "@/lib/discovery/message-classifier";
+import { generateReply } from "@/lib/discovery/reply-generator";
+import type { Workspace } from "@/lib/database.types";
 
+/**
+ * Handle inbound email reply webhook.
+ *
+ * Classifies the reply, generates a suggested response using approved
+ * workspace facts, routes uncertain/high-risk cases to human review,
+ * and stops follow-ups when appropriate (unsubscribe, complaint,
+ * bounce, not_interested).
+ *
+ * DRY RUN: No real emails are sent. All actions are recorded in the
+ * audit log.
+ */
 export async function POST(request: Request) {
   // Verify webhook signature
   const signature = request.headers.get("x-webhook-signature");
@@ -62,7 +82,7 @@ export async function POST(request: Request) {
   // Find outreach records for this email
   const { data: outreachRecords, error: outreachError } = await supabase
     .from("outreach")
-    .select("*, leads (email, workspace_id)")
+    .select("*, leads (email, name, company), workspaces (*, outreach_rules, company_profile, brand_voice, approved_claims, pricing, services)")
     .eq("leads.email", replyEvent.email)
     .in("status", ["sent", "delivered", "opened"]);
 
@@ -74,34 +94,112 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No active outreach found for this email" }, { status: 404 });
   }
 
-  // Update each outreach record to replied and cancel pending follow-ups
+  const results = [];
+
   for (const outreach of outreachRecords) {
     const workspaceId = (outreach.leads as { workspace_id: string }).workspace_id;
     const leadId = (outreach.leads as { id: string }).id;
+    const leadName = (outreach.leads as { name: string | null }).name;
+    const leadCompany = (outreach.leads as { company: string | null }).company;
+    const workspace = outreach.workspaces as Workspace;
+
+    // Classify the reply using the reply text content
+    const classification = classifyReply(replyEvent.text ?? "", replyEvent.email);
+
+    // Generate suggested reply if appropriate
+    // Skip reply generation for unsubscribe, bounce, and complaint
+    let suggestedReply;
+    if (
+      classification.category !== "bounce" &&
+      classification.category !== "complaint" &&
+      classification.category !== "unsubscribe"
+    ) {
+      suggestedReply = generateReply(
+        classification.category,
+        leadName,
+        leadCompany,
+        workspace,
+        replyEvent.email
+      );
+    }
+
+    // Determine if follow-ups should be stopped
+    const stopFollowUps = shouldStopFollowUps(classification.category);
+
+    // Determine if human review is required
+    const needsReview = requiresHumanReview(classification.category);
+
+    // Update outreach record
+    const updateData: Record<string, unknown> = {
+      status: "replied",
+    };
 
     await supabase
       .from("outreach")
-      .update({ status: "replied" })
+      .update(updateData)
       .eq("id", outreach.id);
 
-    // Stop follow-ups when a prospect replies
-    await supabase
-      .from("outreach")
-      .update({ status: "cancelled", next_follow_up_at: null })
-      .eq("workspace_id", workspaceId)
-      .eq("lead_id", leadId)
-      .in("status", ["draft", "pending_approval"]);
+    // Stop follow-ups when appropriate
+    if (stopFollowUps) {
+      await supabase
+        .from("outreach")
+        .update({ status: "cancelled", next_follow_up_at: null })
+        .eq("workspace_id", workspaceId)
+        .eq("lead_id", leadId)
+        .in("status", ["draft", "pending_approval"]);
+    }
 
-    // Audit log
+    // Audit log with classification details
     await supabase.from("audit_logs").insert({
       workspace_id: workspaceId,
       actor_id: null,
       action: "outreach.replied",
       target_type: "outreach",
       target_id: outreach.id,
-      metadata: { email: replyEvent.email },
+      metadata: {
+        email: replyEvent.email,
+        classification: classification.category,
+        confidence: classification.confidence,
+        reasoning: classification.reasoning,
+        requiresHumanReview: needsReview,
+        stopFollowUps,
+        suggestedReply: suggestedReply
+          ? {
+              subject: suggestedReply.subject,
+              bodyPreview: suggestedReply.body.slice(0, 200),
+              confidence: suggestedReply.confidence,
+              usesApprovedClaims: suggestedReply.usesApprovedClaims,
+            }
+          : null,
+      },
+    });
+
+    results.push({
+      outreachId: outreach.id,
+      workspaceId,
+      leadId,
+      classification: {
+        category: classification.category,
+        confidence: classification.confidence,
+        reasoning: classification.reasoning,
+        matchedPatterns: classification.matchedPatterns,
+      },
+      suggestedReply: suggestedReply
+        ? {
+            subject: suggestedReply.subject,
+            body: suggestedReply.body,
+            confidence: suggestedReply.confidence,
+            usesApprovedClaims: suggestedReply.usesApprovedClaims,
+          }
+        : null,
+      requiresHumanReview: needsReview,
+      stopFollowUps,
     });
   }
 
-  return NextResponse.json({ success: true, processed: outreachRecords.length });
+  return NextResponse.json({
+    success: true,
+    processed: results.length,
+    results,
+  });
 }
