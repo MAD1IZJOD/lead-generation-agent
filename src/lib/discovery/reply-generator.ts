@@ -1,4 +1,4 @@
-import type { Workspace } from "@/lib/database.types";
+import type { Workspace, WorkspaceBrandVoice } from "@/lib/database.types";
 import type { ReplyClassification } from "./message-classifier";
 
 /**
