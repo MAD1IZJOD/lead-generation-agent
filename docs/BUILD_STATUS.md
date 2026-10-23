@@ -95,7 +95,7 @@
 | 3 | Application Shell & Authentication | Complete | Next.js app, login/signup/dashboard, Supabase auth, middleware |
 | 4 | Prospect Discovery and Research | Complete | Zero-cost seed-URL discovery, lead management, evidence, qualification, email provider integration, webhook endpoints, setup documentation |
 | 5 | Prospect Discovery and Communication | Complete | Zero-cost seed-URL discovery, lead management, evidence, qualification, prospect discovery, email provider integration, webhook endpoints, reply classification, suggested replies, calendar adapter |
-| 6 | Pipeline and Revenue | Implemented | CRM pipeline stages (lead, qualified, contacted, replied, meeting, proposal, won, lost), deal records with amount/currency/expected close date/status/next action, auditable revenue ledger (projected, proposal, contract, invoiced, collected, refunds), idempotent revenue events, cost tracking (model usage, prospect discovery, email delivery), dashboard metrics, budget limits with alerts |
+| 6 | Pipeline and Revenue | In Progress | CRM pipeline stages and deal records implemented (complete). Revenue ledger, cost tracking, dashboard metrics, budget limits not yet implemented. |
 | 7 | Security, Reliability, and End-to-End Hardening | Not Started | Security audit, rate monitoring, cost ceilings, emergency procedures |
 | 8 | Deployment and Production Readiness | Not Started | Vercel deployment, production monitoring, operating manual |
 
@@ -234,44 +234,35 @@ Plus prior Phase 4 commits: provider adapter, webhook endpoints, background jobs
 - Actual close date auto-set when stage transitions to won or lost
 
 ### Layer 3: Revenue Ledger
-- Revenue types: projected, proposal, contract, invoiced, collected, refund
-- Idempotent revenue events via idempotency key (duplicate webhook events cannot double-count)
-- Revenue summary: projected pipeline, proposal value, contract value, invoiced, cash collected, refunds, net collected
-- Projected and signed amounts are never treated as cash collected
-- Manual cost entries and mocked provider usage (no paid services activated)
+- **Not implemented**: No code exists yet. Requires RevenueRecord type, revenue event creation with idempotency key, revenue summary aggregation, refund recording.
+- Planned revenue types: projected, proposal, contract, invoiced, collected, refund
+- Projected and signed amounts must never be treated as cash collected
 
 ### Layer 4: Cost Tracking
-- Cost types: model_usage, prospect_discovery, email_delivery, other
-- Manual cost entries with provider, amount, currency, description
-- Helper functions: recordModelUsage, recordProspectDiscoveryCost, recordEmailDeliveryCost
-- Cost summary aggregated by type and provider
+- **Not implemented**: No code exists yet. Requires CostRecord type, cost recording with provider/amount/currency, cost summary aggregation.
+- Planned cost types: model_usage, prospect_discovery, email_delivery, other
+- Manual entries only (no paid services activated)
 
 ### Layer 5: Dashboard Metrics
-- Dashboard metrics with explicit definitions, currencies, and date ranges
-- Lead counts and unsigned proposals are NOT presented as revenue
-- Metrics: leads by stage, total leads, total deals, deal value, pipeline value, proposal value, contract value, invoiced, collected, refunds, net collected, total costs, net profit, conversion rate, win rate
-- Projection: unsigned proposals are pipeline value, not revenue
+- **Not implemented**: No code exists yet. Requires metrics aggregation from leads, deals, revenue events, and cost records.
+- Lead counts and unsigned proposals must NOT be presented as revenue
 
 ### Layer 6: Budget Limits and Alerts
-- Budget limits per type (model_usage, prospect_discovery, email_delivery, total) and provider
-- Monthly budget limits in cents with currency
-- Alert threshold percentage (default 80%)
-- Blocked actions when budget is exhausted
-- Alert actions when threshold reached but not exceeded
-- Budget check before action: validates projected spend against limit
+- **Not implemented**: No code exists yet. Requires budget limit records, budget status checking, blocked/over-budget prevention, budget alerts.
 
 ### Phase 6 Exit Criteria
 - [x] CRM pipeline with 8 configurable stages preserving existing lead data
 - [x] Deal records with amount, currency, expected close date, status, next action
-- [x] Workspace membership and tenant isolation enforced on all operations
-- [x] Auditable revenue ledger distinguishing projected, proposal, contract, invoiced, collected, refunds
-- [x] Revenue events idempotent via idempotency key (no double-counting on duplicate events)
-- [x] Audit history preserved for all revenue events
-- [x] Cost tracking for model usage, prospect discovery, email delivery, manual entries only
-- [x] Dashboard metrics with explicit definitions, currencies, date ranges
-- [x] Lead counts and unsigned proposals not presented as revenue
-- [x] Budget limits with alerts and blocked/over-budget prevention
-- [x] Tests for valid/invalid stage transitions, duplicate records, revenue events, tenant isolation, authorization, currency validation, refunds, date handling, budget limits
+- [x] Workspace membership and tenant isolation enforced on pipeline operations
+- [ ] Auditable revenue ledger distinguishing projected, proposal, contract, invoiced, collected, refunds
+- [ ] Revenue events idempotent via idempotency key (no double-counting on duplicate events)
+- [ ] Audit history preserved for all revenue events
+- [ ] Cost tracking for model usage, prospect discovery, email delivery, manual entries only
+- [ ] Dashboard metrics with explicit definitions, currencies, date ranges
+- [ ] Lead counts and unsigned proposals not presented as revenue
+- [ ] Budget limits with alerts and blocked/over-budget prevention
+- [x] Tests for valid/invalid stage transitions (pipeline only)
+- [ ] Tests for duplicate records, revenue events, authorization, currency validation, refunds, date handling, budget limits
 - [x] DRY RUN enabled, mocks for external services
 - [x] Unit-tested with mocks (11 pipeline service tests)
 - [x] Not live-verified: no live database, no paid providers, no real currency
@@ -295,9 +286,11 @@ These must be provided before full live-verified integration can be demonstrated
 
 ## Zero-Budget Next Steps
 
-1. Update `docs/SETUP_GUIDE.md` and `docs/OPERATING_MANUAL.md` with Phase 4 discovery workflow details.
-2. Verify against a real public website (manual step — user supplies a seed URL they own or control).
-3. Configure SMTP credentials (`SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`) and `EMAIL_TEST_ADDRESS` to verify email delivery (manual step — user provides credentials).
-4. Configure `CRON_SECRET` and set up a cron scheduler (e.g., Vercel Cron) for follow-up processing.
-5. Complete Phase 5 (Outreach Sending and Compliance) exit criteria if not already met.
-6. Proceed to Phase 7 (Security, Reliability, and End-to-End Hardening) and Phase 8 (Deployment).
+1. Implement Phase 6 remaining layers: Revenue ledger, cost tracking, dashboard metrics, budget limits (src/lib/revenue/, src/lib/cost/, src/lib/dashboard/, src/lib/budget/)
+2. Add tests for revenue events, cost records, dashboard metrics, budget limits (idempotency, tenant isolation, budget blocking)
+3. Update `docs/SETUP_GUIDE.md` and `docs/OPERATING_MANUAL.md` with Phase 4 discovery workflow details.
+4. Verify against a real public website (manual step — user supplies a seed URL they own or control).
+5. Configure SMTP credentials (`SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`) and `EMAIL_TEST_ADDRESS` to verify email delivery (manual step — user provides credentials).
+6. Configure `CRON_SECRET` and set up a cron scheduler (e.g., Vercel Cron) for follow-up processing.
+7. Complete Phase 5 (Outreach Sending and Compliance) exit criteria if not already met.
+8. Proceed to Phase 7 (Security, Reliability, and End-to-End Hardening) and Phase 8 (Deployment).
