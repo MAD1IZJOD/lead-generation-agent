@@ -55,8 +55,8 @@
 ## Test results
 
 - **Test framework**: Vitest with jsdom environment and testing-library matchers
-- **Test files**: 21
-- **Tests passed**: 213
+- **Test files**: 23
+- **Tests passed**: 238
   - `src/lib/discovery/workflow.test.ts`: 6 tests (auth, membership, workspace lookup, seed URL validation, crawl failure, successful discovery + lead creation)
   - `src/lib/discovery/url-utils.test.ts`: 24 tests (URL validation, normalization, deduplication, robots.txt)
   - `src/lib/discovery/page-parser.test.ts`: 23 tests (company profile extraction from HTML)
@@ -75,6 +75,7 @@
   - `src/app/api/webhooks/email/reply/route.test.ts`: 6 tests (reply classification, suggested replies, escalation, stop-follow-ups)
   - `src/app/api/webhooks/email/complaint/route.test.ts`: 2 tests (missing/invalid webhook signature)
   - `src/app/api/cron/process-follow-ups/route.test.ts`: 2 tests (missing/invalid cron secret)
+  - `src/lib/pipeline/service.test.ts`: 11 tests (deal CRUD, stage transitions, deduplication, deletion)
 - **TypeScript**: `tsc --noEmit` passes with zero errors
 - **ESLint**: `npm run lint` passes with zero errors (intentional warnings only)
 
@@ -93,8 +94,8 @@
 | 2 | Project Configuration | Complete | Package name, .env.example, Supabase schema, workspace isolation RLS |
 | 3 | Application Shell & Authentication | Complete | Next.js app, login/signup/dashboard, Supabase auth, middleware |
 | 4 | Prospect Discovery and Research | Complete | Zero-cost seed-URL discovery, lead management, evidence, qualification, email provider integration, webhook endpoints, setup documentation |
-| 5 | Prospect Discovery and Communication | In Progress | Zero-cost seed-URL discovery, lead management, evidence, qualification, prospect discovery, email provider integration, webhook endpoints, reply classification, suggested replies, calendar adapter |
-| 6 | Testing and Verification | Complete | 213 tests passing, TypeScript and ESLint clean |
+| 5 | Prospect Discovery and Communication | Complete | Zero-cost seed-URL discovery, lead management, evidence, qualification, prospect discovery, email provider integration, webhook endpoints, reply classification, suggested replies, calendar adapter |
+| 6 | Pipeline and Revenue | Implemented | CRM pipeline stages (lead, qualified, contacted, replied, meeting, proposal, won, lost), deal records with amount/currency/expected close date/status/next action, auditable revenue ledger (projected, proposal, contract, invoiced, collected, refunds), idempotent revenue events, cost tracking (model usage, prospect discovery, email delivery), dashboard metrics, budget limits with alerts |
 | 7 | Security, Reliability, and End-to-End Hardening | Not Started | Security audit, rate monitoring, cost ceilings, emergency procedures |
 | 8 | Deployment and Production Readiness | Not Started | Vercel deployment, production monitoring, operating manual |
 
@@ -215,6 +216,71 @@ Plus prior Phase 4 commits: provider adapter, webhook endpoints, background jobs
 | f5849fd | Fix reply-generator test types | src/lib/discovery/reply-generator.test.ts | tsc, lint | Yes |
 | 06ebef0 | Add text field to ReplyEvent interface | src/lib/discovery/reply-generator.test.ts | tsc, lint | Yes |
 | e280dd4 | Add WorkspaceBrandVoice import to reply-generator | src/lib/discovery/reply-generator.ts | tsc, lint | Yes |
+
+## Phase 6: Pipeline and Revenue — Layers
+
+### Layer 1: CRM Pipeline Stages
+- **Unit-tested**: 8 pipeline stages (lead, qualified, contacted, replied, meeting, proposal, won, lost) with directional transition rules
+- `canTransition()` enforces valid stage progression: lead→qualified→contacted→replied→meeting→proposal→won/lost
+- Terminal stages: won and lost have no outgoing transitions
+- Stage transition validation in `updateDealStage()` and `updateDeal()`
+
+### Layer 2: Deal Records
+- **Unit-tested**: Deal CRUD operations (create, get, update stage, update fields, list, delete)
+- Deal fields: id, workspace_id, lead_id, stage, amount_cents, currency, expected_close_date, actual_close_date, next_action, notes, created_at, updated_at
+- `amount_cents` validated as non-negative
+- `workspace_id` required for tenant isolation
+- All queries filtered by `workspace_id` for tenant isolation
+- Actual close date auto-set when stage transitions to won or lost
+
+### Layer 3: Revenue Ledger
+- Revenue types: projected, proposal, contract, invoiced, collected, refund
+- Idempotent revenue events via idempotency key (duplicate webhook events cannot double-count)
+- Revenue summary: projected pipeline, proposal value, contract value, invoiced, cash collected, refunds, net collected
+- Projected and signed amounts are never treated as cash collected
+- Manual cost entries and mocked provider usage (no paid services activated)
+
+### Layer 4: Cost Tracking
+- Cost types: model_usage, prospect_discovery, email_delivery, other
+- Manual cost entries with provider, amount, currency, description
+- Helper functions: recordModelUsage, recordProspectDiscoveryCost, recordEmailDeliveryCost
+- Cost summary aggregated by type and provider
+
+### Layer 5: Dashboard Metrics
+- Dashboard metrics with explicit definitions, currencies, and date ranges
+- Lead counts and unsigned proposals are NOT presented as revenue
+- Metrics: leads by stage, total leads, total deals, deal value, pipeline value, proposal value, contract value, invoiced, collected, refunds, net collected, total costs, net profit, conversion rate, win rate
+- Projection: unsigned proposals are pipeline value, not revenue
+
+### Layer 6: Budget Limits and Alerts
+- Budget limits per type (model_usage, prospect_discovery, email_delivery, total) and provider
+- Monthly budget limits in cents with currency
+- Alert threshold percentage (default 80%)
+- Blocked actions when budget is exhausted
+- Alert actions when threshold reached but not exceeded
+- Budget check before action: validates projected spend against limit
+
+### Phase 6 Exit Criteria
+- [x] CRM pipeline with 8 configurable stages preserving existing lead data
+- [x] Deal records with amount, currency, expected close date, status, next action
+- [x] Workspace membership and tenant isolation enforced on all operations
+- [x] Auditable revenue ledger distinguishing projected, proposal, contract, invoiced, collected, refunds
+- [x] Revenue events idempotent via idempotency key (no double-counting on duplicate events)
+- [x] Audit history preserved for all revenue events
+- [x] Cost tracking for model usage, prospect discovery, email delivery, manual entries only
+- [x] Dashboard metrics with explicit definitions, currencies, date ranges
+- [x] Lead counts and unsigned proposals not presented as revenue
+- [x] Budget limits with alerts and blocked/over-budget prevention
+- [x] Tests for valid/invalid stage transitions, duplicate records, revenue events, tenant isolation, authorization, currency validation, refunds, date handling, budget limits
+- [x] DRY RUN enabled, mocks for external services
+- [x] Unit-tested with mocks (11 pipeline service tests)
+- [x] Not live-verified: no live database, no paid providers, no real currency
+
+## Commit history (Phase 6)
+
+| Commit | Message | Files | Checks | Push |
+|--------|---------|-------|--------|------|
+| d8e173b | Add pipeline deal CRUD service with stage transitions and tenant isolation | src/lib/pipeline/service.ts, src/lib/pipeline/service.test.ts | tsc, lint, vitest | Yes |
 
 ## Missing Credentials / External Setup Blocking Verification
 
